@@ -1,8 +1,8 @@
 [
   {
     "name": "pnp-sp-dev-spfx-web-parts-aad-api-spo-cookie",
-    "title": "Call custom APIs secured with Azure Active Directory without ADAL JS",
     "source": "pnp",
+    "title": "Call custom APIs secured with Azure Active Directory without ADAL JS",
     "shortDescription": "Sample SharePoint Framework client-side web part showing how to access a custom API secured with Azure Active Directory (AAD) without using ADAL JS.",
     "url": "https://github.com/pnp/sp-dev-fx-webparts/tree/main/samples/aad-api-spo-cookie",
     "longDescription": [
@@ -5317,6 +5317,63 @@
     ]
   },
   {
+    "name": "pnp-sp-dev-spfx-web-parts-react-datatable-using-mui-tables",
+    "source": "pnp",
+    "title": "DataTable Using MUI table",
+    "shortDescription": "This web part provides mui datatable features for your lists.",
+    "url": "https://github.com/pnp/sp-dev-fx-webparts/tree/main/samples/react-datatable-using-mui-tables",
+    "longDescription": [
+      "This web part provides mui datatable features for your lists."
+    ],
+    "creationDateTime": "2022-01-30",
+    "updateDateTime": "2022-01-30",
+    "products": [
+      "SharePoint"
+    ],
+    "metadata": [
+      {
+        "key": "CLIENT-SIDE-DEV",
+        "value": "React"
+      },
+      {
+        "key": "SPFX-VERSION",
+        "value": "1.12.1"
+      },
+      {
+        "key": "PNPCONTROLS",
+        "value": "PropertyFieldColorPicker, PropertyFieldListPicker, PropertyFieldMultiSelect, PropertyFieldOrder, WebPartTitle, Placeholder"
+      }
+    ],
+    "thumbnails": [
+      {
+        "type": "image",
+        "order": 100,
+        "url": "https://github.com/pnp/sp-dev-fx-webparts/raw/main/samples/react-datatable-using-mui-tables/assets/first.png",
+        "alt": "Data Table with MUI"
+      },
+      {
+        "type": "image",
+        "order": 101,
+        "url": "https://github.com/pnp/sp-dev-fx-webparts/raw/main/samples/react-datatable-using-mui-tables/assets/second.png",
+        "alt": "Data Table with MUI"
+      }
+    ],
+    "authors": [
+      {
+        "gitHubAccount": "jeffinjacob",
+        "pictureUrl": "https://github.com/jeffinjacob.png",
+        "name": "Jeffin Jacob"
+      }
+    ],
+    "references": [
+      {
+        "name": "Build your first SharePoint client-side web part",
+        "description": "Client-side web parts are client-side components that run in the context of a SharePoint page. Client-side web parts can be deployed to SharePoint environments that support the SharePoint Framework. You can also use modern JavaScript web frameworks, tools, and libraries to build them.",
+        "url": "https://docs.microsoft.com/en-us/sharepoint/dev/spfx/web-parts/get-started/build-a-hello-world-web-part"
+      }
+    ]
+  },
+  {
     "name": "pnp-sp-dev-spfx-web-parts-react-datatable",
     "source": "pnp",
     "title": "Data Table",
@@ -7512,6 +7569,54 @@
         "pictureUrl": "https://github.com/a1mery.png",
         "name": "Aimery Thomas",
         "twitter": "aimery_thomas"
+      }
+    ],
+    "references": [
+      {
+        "name": "Build your first SharePoint client-side web part",
+        "description": "Client-side web parts are client-side components that run in the context of a SharePoint page. Client-side web parts can be deployed to SharePoint environments that support the SharePoint Framework. You can also use modern JavaScript web frameworks, tools, and libraries to build them.",
+        "url": "https://docs.microsoft.com/en-us/sharepoint/dev/spfx/web-parts/get-started/build-a-hello-world-web-part"
+      }
+    ]
+  },
+  {
+    "name": "pnp-sp-dev-spfx-web-parts-react-graph-auto-batching",
+    "source": "pnp",
+    "title": "Graph auto batching",
+    "shortDescription": "This same shows how to abstract batching graph requests",
+    "url": "https://github.com/pnp/sp-dev-fx-webparts/tree/main/samples/react-graph-auto-batching",
+    "longDescription": [
+      "This same shows how to abstract batching graph requests"
+    ],
+    "creationDateTime": "2022-02-03",
+    "updateDateTime": "2022-02-03",
+    "products": [
+      "SharePoint"
+    ],
+    "metadata": [
+      {
+        "key": "CLIENT-SIDE-DEV",
+        "value": "React"
+      },
+      {
+        "key": "SPFX-VERSION",
+        "value": "1.13.0"
+      }
+    ],
+    "thumbnails": [
+      {
+        "type": "image",
+        "order": 100,
+        "url": "https://github.com/pnp/sp-dev-fx-webparts/raw/gh-pages/img/_nopreview.png",
+        "alt": "No preview available"
+      }
+    ],
+    "authors": [
+      {
+        "gitHubAccount": "mgwojciech",
+        "pictureUrl": "https://github.com/mgwojciech.png",
+        "name": "Marcin Wojciechowski",
+        "company": "Valo"
       }
     ],
     "references": [
