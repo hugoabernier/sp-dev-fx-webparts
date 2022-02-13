@@ -1,7 +1,7 @@
 [
   {
-    "name": "pnp-sp-dev-spfx-web-parts-aad-api-spo-cookie",
     "source": "pnp",
+    "name": "pnp-sp-dev-spfx-web-parts-aad-api-spo-cookie",
     "title": "Call custom APIs secured with Azure Active Directory without ADAL JS",
     "shortDescription": "Sample SharePoint Framework client-side web part showing how to access a custom API secured with Azure Active Directory (AAD) without using ADAL JS.",
     "url": "https://github.com/pnp/sp-dev-fx-webparts/tree/main/samples/aad-api-spo-cookie",
