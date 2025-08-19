@@ -2,8 +2,7 @@ import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { Version } from '@microsoft/sp-core-library';
 import {
-  type IPropertyPaneConfiguration,
-  PropertyPaneTextField
+  type IPropertyPaneConfiguration
 } from '@microsoft/sp-property-pane';
 import { BaseClientSideWebPart } from '@microsoft/sp-webpart-base';
 import { IReadonlyTheme } from '@microsoft/sp-component-base';
@@ -11,9 +10,12 @@ import { IReadonlyTheme } from '@microsoft/sp-component-base';
 import * as strings from 'MermaidDiagramWebPartStrings';
 import MermaidDiagram from './components/MermaidDiagram';
 import { IMermaidDiagramProps } from './components/IMermaidDiagramProps';
+import { PropertyPaneMonaco } from '../../shared/propertyPane/PropertyPaneMonaco/PropertyPaneMonaco';
+import { MermaidTheme } from './components/MermaidPreview';
 
 export interface IMermaidDiagramWebPartProps {
-  description: string;
+  definition: string;
+  theme: MermaidTheme;
 }
 
 export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermaidDiagramWebPartProps> {
@@ -25,7 +27,8 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
     const element: React.ReactElement<IMermaidDiagramProps> = React.createElement(
       MermaidDiagram,
       {
-        description: this.properties.description,
+        definition: this.properties.definition,
+        mermaidTheme: this.properties.theme,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
@@ -36,13 +39,36 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
     ReactDom.render(element, this.domElement);
   }
 
-  protected onInit(): Promise<void> {
-    return this._getEnvironmentMessage().then(message => {
-      this._environmentMessage = message;
-    });
+  protected async onInit(): Promise<void> {
+    this.ensureDefaults(); // ⬅️ set defaults into this.properties early
+    this._environmentMessage = await this._getEnvironmentMessage();
   }
 
+  // ensure defaults are written INTO the property bag (once)
+  private ensureDefaults(): void {
 
+    if (!this.properties.definition) {
+      this.properties.definition = [
+        'flowchart LR',
+        '  A[Edit web part properties] --> B{See a diagram?}',
+        '  B -- Yes --> C[Ship it]',
+        '  B -- No  --> D[Fix syntax]',
+        '  D --> B'
+      ].join('\n');
+    }
+    if (!this.properties.theme) {
+      this.properties.theme = 'default';
+    }
+  }
+
+  // When the property pane is about to open, re-assert defaults in case this
+  // is a fresh instance with an empty bag.
+  protected onPropertyPaneConfigurationStart(): void {
+    this.ensureDefaults();
+  }
+
+  // Make Property Pane reactive so edits redraw the part immediately
+  protected get disableReactivePropertyChanges(): boolean { return false; }
 
   private _getEnvironmentMessage(): Promise<string> {
     if (!!this.context.sdks.microsoftTeams) { // running in Teams, office.com or Outlook
@@ -99,23 +125,24 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
 
   protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
     return {
-      pages: [
-        {
-          header: {
-            description: strings.PropertyPaneDescription
-          },
-          groups: [
-            {
-              groupName: strings.BasicGroupName,
-              groupFields: [
-                PropertyPaneTextField('description', {
-                  label: strings.DescriptionFieldLabel
-                })
-              ]
-            }
+      pages: [{
+        header: { description: 'Mermaid Settings' },
+        groups: [{
+          groupName: 'Diagram',
+          groupFields: [
+            PropertyPaneMonaco('definition', {
+              key: 'definitionEditor',
+              value: this.properties.definition,
+              height: 320,
+              languageId: 'mermaid',
+              onChange: (newValue) => {
+                this.properties.definition = newValue;
+                this.render();             // live preview
+              }
+            })
           ]
-        }
-      ]
+        }]
+      }]
     };
   }
 }
