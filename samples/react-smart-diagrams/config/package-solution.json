@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
+  "solution": {
+    "name": "react-smart-diagrams-client-side-solution",
+    "id": "d118105c-437d-4ad8-99cd-22fe70ea68f5",
+    "version": "1.0.0.0",
+    "includeClientSideAssets": true,
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "developer": {
+      "name": "",
+      "websiteUrl": "",
+      "privacyUrl": "",
+      "termsOfUseUrl": "",
+      "mpnId": "Undefined-1.21.1"
+    },
+    "metadata": {
+      "shortDescription": {
+        "default": "react-smart-mermaid description"
+      },
+      "longDescription": {
+        "default": "react-smart-mermaid description"
+      },
+      "screenshotPaths": [],
+      "videoUrl": "",
+      "categories": []
+    },
+    "features": [
+      {
+        "title": "react-smart-mermaid Feature",
+        "description": "The feature that activates elements of the react-smart-mermaid solution.",
+        "id": "ee24aa98-7b55-44bf-83a4-a739f9af2f05",
+        "version": "1.0.0.0"
+      }
+    ]
+  },
+  "paths": {
+    "zippedPackage": "solution/react-smart-diagrams.sppkg"
+  }
+}

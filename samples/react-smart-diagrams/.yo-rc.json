@@ -1,0 +1,18 @@
+{
+  "@microsoft/generator-sharepoint": {
+    "plusBeta": false,
+    "isCreatingSolution": true,
+    "nodeVersion": "22.15.1",
+    "sdksVersions": {},
+    "version": "1.21.1",
+    "libraryName": "react-smart-diagrams",
+    "libraryId": "d118105c-437d-4ad8-99cd-22fe70ea68f5",
+    "environment": "spo",
+    "packageManager": "npm",
+    "solutionName": "react-smart-diagrams",
+    "solutionShortDescription": "react-smart-mermaid description",
+    "skipFeatureDeployment": true,
+    "isDomainIsolated": false,
+    "componentType": "webpart"
+  }
+}
