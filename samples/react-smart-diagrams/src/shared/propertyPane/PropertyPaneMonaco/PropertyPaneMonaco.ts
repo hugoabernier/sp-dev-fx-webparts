@@ -1,21 +1,21 @@
-import {
-    IPropertyPaneCustomFieldProps,
-    IPropertyPaneField,
-    PropertyPaneFieldType
-} from '@microsoft/sp-property-pane';
-
-
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
+import {
+    IPropertyPaneField,
+    IPropertyPaneCustomFieldProps,
+    PropertyPaneFieldType
+} from '@microsoft/sp-property-pane';
 import MonacoEditorHost from './MonacoEditorHost';
+import { ILanguageProvider } from './languages/ILanguageProvider';
 
 export interface IPropertyPaneMonacoProps {
     key: string;
     value: string;
     height?: number;
-    languageId?: string; // we'll use "mermaid"
-    onChange?: (newValue: string) => void;
+    languageId: string;                 // e.g., 'mermaid'
+    provider?: ILanguageProvider;       // plug-in for syntax/validation
     targetProperty: string;
+    onChange?: (newValue: string) => void;
 }
 
 interface IInternalProps extends IPropertyPaneMonacoProps, IPropertyPaneCustomFieldProps { }
@@ -27,13 +27,16 @@ export function PropertyPaneMonaco(
 
     const props: IInternalProps = {
         ...properties,
-        key: properties.key,
-        onRender: (elem, _ctx, _change) => {
+        targetProperty,
+        onRender: (elem) => {
             ReactDom.render(
                 React.createElement(MonacoEditorHost, {
                     value: properties.value ?? '',
-                    height: properties.height ?? 300,
-                    languageId: properties.languageId ?? 'mermaid',
+                    height: properties.height ?? 360,
+                    languageId: properties.languageId,
+                    provider: properties.provider,
+                    minimap: false,
+                    lineNumbers: 'off',
                     onChange: properties.onChange
                 }),
                 elem
@@ -43,7 +46,7 @@ export function PropertyPaneMonaco(
     };
 
     return {
-        type: PropertyPaneFieldType.Custom,   // ✅ instead of 1
+        type: PropertyPaneFieldType.Custom,
         targetProperty,
         properties: props
     };

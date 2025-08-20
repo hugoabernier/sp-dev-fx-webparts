@@ -12,6 +12,7 @@ import MermaidDiagram from './components/MermaidDiagram';
 import { IMermaidDiagramProps } from './components/IMermaidDiagramProps';
 import { PropertyPaneMonaco } from '../../shared/propertyPane/PropertyPaneMonaco/PropertyPaneMonaco';
 import { MermaidTheme } from './components/MermaidPreview';
+import { MermaidLanguage } from '../../shared/propertyPane/PropertyPaneMonaco/languages/MermaidLanguage';
 
 export interface IMermaidDiagramWebPartProps {
   definition: string;
@@ -137,9 +138,10 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
             PropertyPaneMonaco('definition', {
               key: 'definitionEditor',
               value: this.properties.definition,
+              languageId: MermaidLanguage.id,       // 'mermaid'
+              provider: MermaidLanguage,  
               targetProperty: 'definition',
               height: 320,
-              languageId: 'mermaid',
               onChange: (newValue) => {
                 this.properties.definition = newValue;
                 this.render();             // live preview
