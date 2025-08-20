@@ -1,5 +1,6 @@
 import * as React from 'react';
 import mermaid from 'mermaid';
+import styles from './MermaidPreview.module.scss';
 
 export type MermaidTheme = 'default' | 'neutral' | 'forest' | 'dark' | 'base';
 
@@ -41,7 +42,7 @@ const MermaidPreview: React.FC<{ definition: string; theme: MermaidTheme }> = (p
         return () => { cancelled = true; };
     }, [definition, theme]);
 
-    return <div ref={ref} />;
+    return <div className={styles.mermaidPreview} ref={ref} />;
 };
 
 export default MermaidPreview;

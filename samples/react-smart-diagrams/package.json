@@ -20,6 +20,7 @@
     "@microsoft/sp-office-ui-fabric-core": "1.21.1",
     "@microsoft/sp-property-pane": "1.21.1",
     "@microsoft/sp-webpart-base": "1.21.1",
+    "@pnp/spfx-controls-react": "3.22.0",
     "mermaid": "^11.10.0",
     "monaco-editor": "^0.52.2",
     "react": "17.0.1",
@@ -40,7 +41,7 @@
     "eslint": "8.57.1",
     "eslint-plugin-react-hooks": "4.3.0",
     "gulp": "4.0.2",
-    "typescript": "~5.3.3",
-    "spfx-fast-serve-helpers": "~1.21.0"
+    "spfx-fast-serve-helpers": "~1.21.0",
+    "typescript": "~5.3.3"
   }
 }

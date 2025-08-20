@@ -1,0 +1,16 @@
+.mermaidPreview {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px; // or whatever fits your needs
+    width: 100%;
+    // Optional: ensure the SVG doesn't overflow
+    overflow: auto;
+}
+
+.mermaidPreview svg {
+    display: block;
+    margin: auto;
+    max-width: 100%;
+    max-height: 100%;
+}

@@ -141,9 +141,9 @@ const mermaidMonarch: import('monaco-editor/esm/vs/editor/editor.api').languages
     tokenizer: {
         root: [
             [/%%.*$/, 'comment'],
-            [/(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|gitGraph|pie)\b/, 'keyword'],
+            [/(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|gitGraph|pie|quadrantChart|requirementDiagram|C4Context|mindmap|timeline|zenuml|sankey|xychart|block|packet|kanban|architecture-beta|radar-beta|treemap-beta)\b/, 'keyword'],
             [/(TB|TD|LR|RL|BT)\b/, 'type'],
-            [/-->|---|-.->|==>/, 'operator'],
+            [/-->|---|-.->|==>|-\)/, 'operator'],
             [/(subgraph|end|click|style|linkStyle|accTitle|accDescr|init)\b/, 'keyword'],
             [/"([^"\\]|\\.)*"/, 'string'],
             [/'([^'\\]|\\.)*'/, 'string'],

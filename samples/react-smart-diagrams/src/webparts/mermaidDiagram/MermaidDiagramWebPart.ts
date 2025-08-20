@@ -16,6 +16,7 @@ import { MermaidTheme } from './components/MermaidPreview';
 export interface IMermaidDiagramWebPartProps {
   definition: string;
   theme: MermaidTheme;
+  title: string;
 }
 
 export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermaidDiagramWebPartProps> {
@@ -27,12 +28,17 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
     const element: React.ReactElement<IMermaidDiagramProps> = React.createElement(
       MermaidDiagram,
       {
+        title: this.properties.title,
+        displayMode: this.displayMode,
         definition: this.properties.definition,
         mermaidTheme: this.properties.theme,
         isDarkTheme: this._isDarkTheme,
         environmentMessage: this._environmentMessage,
         hasTeamsContext: !!this.context.sdks.microsoftTeams,
-        userDisplayName: this.context.pageContext.user.displayName
+        userDisplayName: this.context.pageContext.user.displayName,
+        updateProperty: (value: string) => {
+          this.properties.title = value;
+        }
       }
     );
 
@@ -57,7 +63,7 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
       ].join('\n');
     }
     if (!this.properties.theme) {
-      this.properties.theme = 'default';
+      this.properties.theme = 'neutral';
     }
   }
 
@@ -124,7 +130,7 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
   protected getPropertyPaneConfiguration(): IPropertyPaneConfiguration {
     return {
       pages: [{
-        header: { description: 'Mermaid Settings' },
+        header: { description: 'Create a new diagram by inserting Mermaid syntax.' },
         groups: [{
           groupName: 'Diagram',
           groupFields: [
