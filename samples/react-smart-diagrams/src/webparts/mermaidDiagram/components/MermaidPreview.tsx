@@ -9,13 +9,13 @@ mermaid.initialize({
     securityLevel: 'strict' // keep this strict in SPFx to avoid DOM injection
 });
 
-const MermaidPreview: React.FC<{ definition: string; theme: MermaidTheme }> = (props: { definition: any; theme: any; }) => {
+const MermaidPreview: React.FC<{ definition: string; theme: MermaidTheme }> = (props: { definition: string; theme: MermaidTheme; }) => {
     const { definition, theme } = props;
     const ref = React.useRef<HTMLDivElement>(null);
 
     React.useEffect(() => {
         let cancelled = false;
-        const render = async () => {
+        const render = async (): Promise<void> => {
             if (!ref.current) return;
             try {
                 // validate first — throws on bad syntax; see parseError hook below

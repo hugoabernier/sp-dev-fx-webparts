@@ -1,3 +1,5 @@
+/* eslint-disable @microsoft/spfx/import-requires-chunk-name */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type * as monacoApi from 'monaco-editor/esm/vs/editor/editor.api';
 import { ILanguageProvider } from './ILanguageProvider';
 
