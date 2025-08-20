@@ -1,14 +1,17 @@
 import * as React from 'react';
-
 import { debounce } from '@microsoft/sp-lodash-subset';
+import styles from './MonacoEditorHost.module.scss';
+
 export interface MonacoEditorHostProps {
     value: string;
     height: number;
     languageId: string;
-    onChange?: (v: string) => void;
+    onChange?: (v: string) => void | ((targetProperty: string, v: string) => void);
+    targetProperty?: string; // For SPFx property pane
 }
 
-const MonacoEditorHost: React.FC<MonacoEditorHostProps> = ({ value, height, languageId, onChange }: MonacoEditorHostProps) => {
+const MonacoEditorHost: React.FC<MonacoEditorHostProps> = (props) => {
+    const { value, height, languageId, onChange, targetProperty } = props;
     const containerRef = React.useRef<HTMLDivElement>(null);
     const editorRef = React.useRef<import('monaco-editor/esm/vs/editor/editor.api').editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = React.useRef<typeof import('monaco-editor/esm/vs/editor/editor.api')>();
@@ -16,17 +19,14 @@ const MonacoEditorHost: React.FC<MonacoEditorHostProps> = ({ value, height, lang
     React.useEffect(() => {
         let disposed = false;
 
-
-        (async () => {
-            // Lazy-load Monaco only in the property pane
+        // Wrap the async IIFE with void to satisfy eslint @typescript-eslint/no-floating-promises
+        void (async () => {
             const monaco = await import(/* webpackChunkName: "monaco-editor" */ 'monaco-editor/esm/vs/editor/editor.api');
             monacoRef.current = monaco;
 
-            // Register the Mermaid language (Monarch) + completions
             await registerMermaidLanguage(monaco);
 
-            // Basic worker wiring that works in SPFx without extra webpack plugins
-            (window as unknown as { MonacoEnvironment?: unknown }).MonacoEnvironment = {
+            (window as any).MonacoEnvironment = {
                 getWorkerUrl: function () {
                     const code = `
             self.MonacoEnvironment = { baseUrl: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.51.0/min/' };
@@ -41,8 +41,11 @@ const MonacoEditorHost: React.FC<MonacoEditorHostProps> = ({ value, height, lang
                 value,
                 language: languageId,
                 automaticLayout: true,
-                minimap: { enabled: true },
-                lineNumbers: 'on',
+                glyphMargin: true,         // Removes breakpoint & folding icons
+                // lineDecorationsWidth: 0,   // Hides line decorations (e.g. error markers)
+                folding: false,            // Disables code folding controls
+                lineNumbers: "off",        // Optional: hides line numbers
+                minimap: { enabled: false } // Optional: hides minimap
             });
             editorRef.current = editor;
 
@@ -54,54 +57,66 @@ const MonacoEditorHost: React.FC<MonacoEditorHostProps> = ({ value, height, lang
                 const text = model.getValue();
                 const markers: import('monaco-editor/esm/vs/editor/editor.api').editor.IMarkerData[] = [];
 
-                // Mermaid validation using parse + parseError hook
-                const mermaid = (await import(/* webpackChunkName: "mermaid" */ 'mermaid')).default;
-                const previous = (mermaid as { parseError?: (err: unknown, hash: unknown) => void }).parseError;
+                // Wrap with void to satisfy eslint @typescript-eslint/no-floating-promises
+                void (async () => {
+                    const mermaid = (await import(/* webpackChunkName: "mermaid" */ 'mermaid')).default;
+                    const previous = (mermaid as { parseError?: (err: unknown, hash: unknown) => void }).parseError;
 
-                let lastHash: Record<string, unknown> | null = null;
-                (mermaid as { parseError?: (err: unknown, hash: unknown) => void }).parseError = (_err: unknown, hash: unknown) => { lastHash = hash as Record<string, unknown>; };
+                    let lastHash: Record<string, unknown> | null = null;
+                    (mermaid as { parseError?: (err: unknown, hash: unknown) => void }).parseError = (_err: unknown, hash: unknown) => { lastHash = hash as Record<string, unknown>; };
 
-                try {
-                    await mermaid.parse(text);
-                } catch (e) {
-                    const loc = lastHash && typeof lastHash === 'object' && 'loc' in lastHash ? (lastHash as any).loc : undefined;
-                    const monacoLoc = loc && typeof loc === 'object' ? {
-                        startLineNumber: typeof loc.first_line === 'number' ? loc.first_line : 1,
-                        startColumn: typeof loc.first_column === 'number' ? loc.first_column + 1 : 1,
-                        endLineNumber: typeof loc.last_line === 'number' ? loc.last_line : (typeof loc.first_line === 'number' ? loc.first_line : 1),
-                        endColumn: typeof loc.last_column === 'number' ? loc.last_column + 1 : model.getLineMaxColumn(1)
-                    } : {
-                        startLineNumber: 1,
-                        startColumn: 1,
-                        endLineNumber: 1,
-                        endColumn: model.getLineMaxColumn(1)
-                    };
-                    markers.push({
-                        ...monacoLoc,
-                        severity: monaco.MarkerSeverity.Error,
-                        message: (e as Error)?.message ?? 'Invalid Mermaid syntax'
-                    });
-                } finally {
-                    (mermaid as { parseError?: (err: unknown, hash: unknown) => void }).parseError = previous;
-                }
+                    try {
+                        await mermaid.parse(text);
+                    } catch (e) {
+                        const loc = lastHash && typeof lastHash === 'object' && 'loc' in lastHash ? (lastHash as any).loc : undefined;
+                        const monacoLoc = loc && typeof loc === 'object' ? {
+                            startLineNumber: typeof loc.first_line === 'number' ? loc.first_line : 1,
+                            startColumn: typeof loc.first_column === 'number' ? loc.first_column + 1 : 1,
+                            endLineNumber: typeof loc.last_line === 'number' ? loc.last_line : (typeof loc.first_line === 'number' ? loc.first_line : 1),
+                            endColumn: typeof loc.last_column === 'number' ? loc.last_column + 1 : model.getLineMaxColumn(1)
+                        } : {
+                            startLineNumber: 1,
+                            startColumn: 1,
+                            endLineNumber: 1,
+                            endColumn: model.getLineMaxColumn(1)
+                        };
+                        markers.push({
+                            ...monacoLoc,
+                            severity: monaco.MarkerSeverity.Error,
+                            message: (e as Error)?.message ?? 'Invalid Mermaid syntax'
+                        });
+                    } finally {
+                        (mermaid as { parseError?: (err: unknown, hash: unknown) => void }).parseError = previous;
+                    }
 
-                monaco.editor.setModelMarkers(model, 'mermaid-validate', markers);
+                    monaco.editor.setModelMarkers(model, 'mermaid-validate', markers);
+                })();
             }, 250);
 
-            const sub = editor.onDidChangeModelContent(validate);
-            validate();
+            const sub = editor.onDidChangeModelContent(() => {
+                const newValue = editor.getValue();
+                if (onChange) {
+                    if (targetProperty) {
+                        (onChange as (targetProperty: string, v: string) => void)(targetProperty, newValue);
+                    } else {
+                        (onChange as (v: string) => void)(newValue);
+                    }
+                }
+                void validate();
+            });
+            void validate();
 
             return () => {
                 sub.dispose();
                 editor.dispose();
             };
-        })().catch(() => {/* ignore */ });
+        })();
 
         return () => {
             disposed = true;
             editorRef.current?.dispose?.();
         };
-    }, []);
+    }, [languageId, targetProperty, onChange]);
 
     // keep external updates (e.g., property reset) in sync
     React.useEffect(() => {
@@ -109,15 +124,13 @@ const MonacoEditorHost: React.FC<MonacoEditorHostProps> = ({ value, height, lang
         if (ed && value !== ed.getValue()) ed.setValue(value ?? '');
     }, [value]);
 
-    // bubble value up
-    React.useEffect(() => {
-        const ed = editorRef.current;
-        if (!ed || !onChange) return;
-        const d = ed.onDidChangeModelContent(() => onChange(ed.getValue()));
-        return () => d.dispose();
-    }, [onChange]);
-
-    return <div ref={containerRef} style={{ height }} />;
+    return (
+        <div
+            ref={containerRef}
+            className={styles.monacoEditorHost}
+            style={{ height }}
+        />
+    );
 };
 
 export default MonacoEditorHost;
@@ -147,7 +160,7 @@ async function registerMermaidLanguage(monaco: typeof import('monaco-editor/esm/
     const existing = monaco.languages.getLanguages().some(l => l.id === id);
     if (!existing) {
         monaco.languages.register({ id });
-        monaco.languages.setMonarchTokensProvider(id, mermaidMonarch as import('monaco-editor/esm/vs/editor/editor.api').languages.IMonarchLanguage);
+        monaco.languages.setMonarchTokensProvider(id, mermaidMonarch);
         monaco.languages.setLanguageConfiguration(id, {
             comments: { lineComment: '%%' },
             brackets: [['{', '}'], ['[', ']'], ['(', ')']],
@@ -156,7 +169,6 @@ async function registerMermaidLanguage(monaco: typeof import('monaco-editor/esm/
         monaco.languages.registerCompletionItemProvider(id, {
             triggerCharacters: [' ', '\n', '[', '(', ':', '-'],
             provideCompletionItems: (model, position) => {
-                // Use model.getWordAtPosition to get a valid range
                 const word = model.getWordAtPosition(position);
                 const range = word ? new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn) : new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
 
@@ -175,22 +187,21 @@ async function registerMermaidLanguage(monaco: typeof import('monaco-editor/esm/
             }
         });
     }
-    function kw(label: string, range?: import('monaco-editor/esm/vs/editor/editor.api').Range): import('monaco-editor/esm/vs/editor/editor.api').languages.CompletionItem {
+    function kw(label: string, range: import('monaco-editor/esm/vs/editor/editor.api').Range): import('monaco-editor/esm/vs/editor/editor.api').languages.CompletionItem {
         return {
             label,
             kind: monaco.languages.CompletionItemKind.Keyword,
             insertText: label,
-            range: range!
+            range
         };
     }
-    function snip(label: string, text: string, range?: import('monaco-editor/esm/vs/editor/editor.api').Range): import('monaco-editor/esm/vs/editor/editor.api').languages.CompletionItem {
+    function snip(label: string, text: string, range: import('monaco-editor/esm/vs/editor/editor.api').Range): import('monaco-editor/esm/vs/editor/editor.api').languages.CompletionItem {
         return {
             label,
             kind: monaco.languages.CompletionItemKind.Snippet,
             insertText: text,
             insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-            range: range!
+            range
         };
     }
 }
-

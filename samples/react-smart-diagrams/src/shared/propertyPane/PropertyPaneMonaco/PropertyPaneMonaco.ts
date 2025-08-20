@@ -15,6 +15,7 @@ export interface IPropertyPaneMonacoProps {
     height?: number;
     languageId?: string; // we'll use "mermaid"
     onChange?: (newValue: string) => void;
+    targetProperty: string;
 }
 
 interface IInternalProps extends IPropertyPaneMonacoProps, IPropertyPaneCustomFieldProps { }

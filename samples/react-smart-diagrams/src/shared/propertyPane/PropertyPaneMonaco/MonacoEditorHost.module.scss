@@ -1,0 +1,8 @@
+@import '~@fluentui/react/dist/sass/References.scss';
+
+.monacoEditorHost {
+  border: 1px solid $ms-color-neutralLight;
+  border-radius: 2px;
+  box-sizing: border-box;
+  background: $ms-color-white;
+}

@@ -67,8 +67,6 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
     this.ensureDefaults();
   }
 
-  // Make Property Pane reactive so edits redraw the part immediately
-  protected get disableReactivePropertyChanges(): boolean { return false; }
 
   private _getEnvironmentMessage(): Promise<string> {
     if (!!this.context.sdks.microsoftTeams) { // running in Teams, office.com or Outlook
@@ -133,6 +131,7 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
             PropertyPaneMonaco('definition', {
               key: 'definitionEditor',
               value: this.properties.definition,
+              targetProperty: 'definition',
               height: 320,
               languageId: 'mermaid',
               onChange: (newValue) => {
