@@ -141,6 +141,8 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
               languageId: MermaidLanguage.id,       // 'mermaid'
               provider: MermaidLanguage,  
               targetProperty: 'definition',
+              enableExpandPanel: true,
+              expandButtonText: 'Open full editor',
               height: 320,
               onChange: (newValue) => {
                 this.properties.definition = newValue;

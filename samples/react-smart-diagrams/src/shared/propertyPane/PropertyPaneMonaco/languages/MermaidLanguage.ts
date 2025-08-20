@@ -50,6 +50,7 @@ export const MermaidLanguage: ILanguageProvider = {
                         snip('Edge', '-->'),
                         snip('DashedEdge', '-.->'),
                         snip('ThickEdge', '==>'),
+                        snip('FrontMatter', '---\ntitle:Title goes here\n---'),
                         snip('Subgraph', 'subgraph ${1:Name}\n  ${2}\nend')
                     ]
                 })

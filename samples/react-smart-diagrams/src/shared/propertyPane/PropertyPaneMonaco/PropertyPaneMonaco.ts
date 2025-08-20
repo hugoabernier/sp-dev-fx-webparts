@@ -5,16 +5,25 @@ import {
     IPropertyPaneCustomFieldProps,
     PropertyPaneFieldType
 } from '@microsoft/sp-property-pane';
-import MonacoEditorHost from './MonacoEditorHost';
+import MonacoPropertyFieldHost, {
+    MonacoPropertyFieldHostProps
+} from './MonacoPropertyFieldHost';
 import { ILanguageProvider } from './languages/ILanguageProvider';
 
 export interface IPropertyPaneMonacoProps {
     key: string;
     value: string;
     height?: number;
-    languageId: string;                 // e.g., 'mermaid'
-    provider?: ILanguageProvider;       // plug-in for syntax/validation
+    languageId: string;
+    provider?: ILanguageProvider;
     targetProperty: string;
+    label?: string;
+    /** Show the “Expand” button that opens the big editor panel */
+    enableExpandPanel?: boolean;
+    /** Optional button label/title texts */
+    expandButtonText?: string;      // default: "Open full editor"
+    panelTitle?: string;            // default: "Edit"
+    /** Called whenever inline or panel editor changes text */
     onChange?: (newValue: string) => void;
 }
 
@@ -28,21 +37,23 @@ export function PropertyPaneMonaco(
     const props: IInternalProps = {
         ...properties,
         targetProperty,
-        onRender: (elem) => {
+        onRender: (elem: HTMLElement): void => {
             ReactDom.render(
-                React.createElement(MonacoEditorHost, {
-                    value: properties.value ?? '',
-                    height: properties.height ?? 360,
+                React.createElement(MonacoPropertyFieldHost, {
+                    value: properties.value,
+                    height: properties.height ?? 320,
                     languageId: properties.languageId,
                     provider: properties.provider,
-                    minimap: false,
-                    lineNumbers: 'off',
+                    label: properties.label,
+                    enableExpandPanel: properties.enableExpandPanel ?? true,
+                    expandButtonText: properties.expandButtonText ?? 'Open full editor',
+                    panelTitle: properties.panelTitle ?? 'Edit',
                     onChange: properties.onChange
-                }),
+                } as MonacoPropertyFieldHostProps),
                 elem
             );
         },
-        onDispose: (elem) => ReactDom.unmountComponentAtNode(elem)
+        onDispose: (elem: HTMLElement): void => { ReactDom.unmountComponentAtNode(elem); }
     };
 
     return {
