@@ -49,7 +49,7 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace }) => {
                         if (!item) return null;
                         return (
                             <div style={{ marginBottom: 12 }}>
-                                <div style={{ fontWeight: 600 }}>{item.role === 'user' ? 'You' : 'Assistant'}</div>
+                                <div style={{ fontWeight: 600 }}>{item.role === 'user' ? 'You' : 'Mermaid assistant'}</div>
                                 <div style={{ whiteSpace: 'pre-wrap' }}>{item.text}</div>
                                 {item.snippet && (
                                     <Stack horizontal tokens={{ childrenGap: 8 }} style={{ marginTop: 6 }}>
@@ -65,7 +65,7 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace }) => {
 
             <TextField
                 multiline autoAdjustHeight
-                placeholder="Ask the AI… e.g., Generate a flowchart for our ETL pipeline"
+                placeholder="Generate a flowchart for our ETL pipeline"
                 value={input} onChange={(_, v) => setInput(v ?? '')}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             />
