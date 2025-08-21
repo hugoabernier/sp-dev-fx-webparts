@@ -15,7 +15,7 @@ import styles from './MonacoEditorHost.module.scss';
 
 export interface MonacoEditorHostProps {
     value: string;
-    height: number;
+    height: number | string;
     languageId: string;           // e.g., 'mermaid'
     provider?: ILanguageProvider; // optional pluggable language/validator
     minimap?: boolean;           // default: true

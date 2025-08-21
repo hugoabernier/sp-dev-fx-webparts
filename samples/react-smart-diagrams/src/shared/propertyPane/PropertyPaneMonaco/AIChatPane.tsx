@@ -69,9 +69,9 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace }) => {
                 value={input} onChange={(_, v) => setInput(v ?? '')}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             />
-            <Stack horizontal tokens={{ childrenGap: 8 }}>
-                <PrimaryButton text="Send" onClick={send} />
-                <DefaultButton text="Clear" onClick={() => setMessages([])} />
+            <Stack horizontal horizontalAlign="end" tokens={{ childrenGap: 8 }}>
+              <Stack.Item grow />
+                <DefaultButton iconProps={{ iconName: 'Send' }} aria-label="Send" onClick={send} />
             </Stack>
         </Stack>
     );
