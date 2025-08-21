@@ -17,7 +17,7 @@ export const MermaidLanguage: ILanguageProvider = {
                 tokenizer: {
                     root: [
                         [/%%.*$/, 'comment'],
-                        [/\b(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|gitGraph|pie)\b/, 'keyword'],
+                        [/\b(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|stateDiagram-v2|erDiagram|journey|gantt|gitGraph|pie|mindmap)\b/, 'keyword'],
                         [/\b(TB|TD|LR|RL|BT)\b/, 'type'],
                         [/-->|---|-.->|==>/, 'operator'],
                         [/\b(subgraph|end|click|style|linkStyle|accTitle|accDescr|init)\b/, 'keyword'],

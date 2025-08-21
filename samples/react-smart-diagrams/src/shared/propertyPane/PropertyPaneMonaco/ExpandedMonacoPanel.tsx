@@ -24,8 +24,8 @@ export interface ExpandedMonacoPanelProps {
 }
 
 // --- Demo config: replace with your values (keep these at top with your other constants) ---
-const OPENAI_MODEL = 'gpt-4';          // a model that supports structured outputs well
-const OPENAI_API_KEY = '<OPENAI_DEMO_API_KEY>'; // ⚠️ demo only; do not ship secrets in client
+const OPENAI_MODEL = 'gpt-4o-mini';          // a model that supports structured outputs well
+const OPENAI_API_KEY = ''; // ⚠️ demo only; do not ship secrets in client
 // ------------------------------------------------------------------------------------------
 
 

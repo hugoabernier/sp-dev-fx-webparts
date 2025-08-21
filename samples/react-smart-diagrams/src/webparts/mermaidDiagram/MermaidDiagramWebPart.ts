@@ -64,7 +64,7 @@ export default class MermaidDiagramWebPart extends BaseClientSideWebPart<IMermai
       ].join('\n');
     }
     if (!this.properties.theme) {
-      this.properties.theme = 'neutral';
+      this.properties.theme = 'default';
     }
   }
 

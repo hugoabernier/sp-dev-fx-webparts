@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { Stack } from '@fluentui/react';
 import { TextField } from '@fluentui/react/lib/TextField';
-import { DefaultButton, PrimaryButton } from '@fluentui/react/lib/Button';
+import { PrimaryButton } from '@fluentui/react/lib/Button';
 import { List } from '@fluentui/react/lib/List';
 
 export interface ChatMessage {
@@ -73,12 +73,7 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace, onSend }) 
                             <div style={{ marginBottom: 12 }}>
                                 <div style={{ fontWeight: 600 }}>{item.role === 'user' ? 'You' : 'Assistant'}</div>
                                 <div style={{ whiteSpace: 'pre-wrap' }}>{item.text}</div>
-                                {item.snippet && (
-                                    <Stack horizontal tokens={{ childrenGap: 8 }} style={{ marginTop: 6 }}>
-                                        <PrimaryButton text="Insert into editor" onClick={() => onInsert(item.snippet!)} />
-                                        <DefaultButton text="Replace editor" onClick={() => onReplace(item.snippet!)} />
-                                    </Stack>
-                                )}
+                                
                             </div>
                         );
                     }}
@@ -93,9 +88,9 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace, onSend }) 
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
                 disabled={busy}
             />
-            <Stack horizontal tokens={{ childrenGap: 8 }}>
-                <PrimaryButton text={busy ? 'Thinking…' : 'Send'} onClick={() => { void send(); }} disabled={busy} />
-                <DefaultButton text="Clear" onClick={() => setMessages([])} disabled={busy} />
+            <Stack horizontal horizontalAlign="end" tokens={{ childrenGap: 8 }}>
+                <Stack.Item grow />
+                <PrimaryButton iconProps={{ iconName: 'Send' }} aria-label={busy ? 'Thinking…' : 'Send'} disabled={busy} onClick={send} />
             </Stack>
         </Stack>
     );
