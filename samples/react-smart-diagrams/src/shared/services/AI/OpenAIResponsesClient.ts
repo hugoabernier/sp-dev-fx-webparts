@@ -7,6 +7,27 @@ export interface AssistantResult {
     raw?: unknown;
 }
 
+export type DiagramKind =
+    | 'flowchart' | 'graph'
+    | 'sequenceDiagram' | 'classDiagram'
+    | 'stateDiagram' | 'stateDiagram-v2'
+    | 'erDiagram' | 'gantt' | 'journey'
+    | 'mindmap'
+    | 'gitGraph' | 'pie';
+
+export interface ChatOptions {
+    /** Tool handler that returns Mermaid syntax docs for a given kind (Markdown or plain text). */
+    onGetMermaidDocs?: (kind: DiagramKind) => Promise<{ syntaxDoc: string; sourceUrl: string }>;
+    baseUrl?: string;
+}
+
+type FunctionCallOutputItem = {
+    type: 'function_call_output';
+    call_id: string;          // the call_... id from the model
+    output: string;           // your tool output (string; JSON.stringify is fine)
+};
+
+
 export class OpenAIResponsesClient {
     private readonly apiKey: string;
     private readonly model: string;
@@ -14,89 +35,138 @@ export class OpenAIResponsesClient {
 
     constructor(opts: { apiKey: string; model: string; baseUrl?: string }) {
         this.apiKey = opts.apiKey;
-        this.model = opts.model; // e.g., 'gpt-4o-mini'
+        this.model = opts.model;
         this.baseUrl = (opts.baseUrl ?? 'https://api.openai.com').replace(/\/+$/, '');
     }
 
-    public async chat(messages: ChatMessage[]): Promise<AssistantResult> {
-        const body = {
-            model: this.model,
-            input: messages, // [{role, content}]
-            // Structured outputs live under text.format.* (Responses API)
-            text: {
-                format: {
-                    type: 'json_schema',
-                    name: 'DiagramAssistantOutput',
-
-                        schema: {
-                            type: 'object',
-                            additionalProperties: false,
-                            properties: {
-                                text: { type: 'string' },
-                                mermaid: { type: 'string' }
-                            },
-                            required: ['text', 'mermaid']
-                        },
-                        strict: true
-                    
-                }
+    public async chat(messages: ChatMessage[], options?: ChatOptions): Promise<AssistantResult> {
+        // Structured outputs (V2): { text, mermaid }
+        const TEXT_FORMAT = {
+            format: {
+                type: 'json_schema',
+                name: 'DiagramAssistantOutput',
+                schema: {
+                    type: 'object',
+                    additionalProperties: false,
+                    properties: {
+                        text: { type: 'string' },
+                        mermaid: { type: 'string' },
+                        syntaxHeader: { type: 'string' }
+                    },
+                    required: ['text', 'mermaid', 'syntaxHeader']
+                },
+                strict: true
             }
-        };
+        } as const;
 
-        const r = await fetch(`${this.baseUrl}/v1/responses`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${this.apiKey}`
-            },
-            body: JSON.stringify(body)
+        // Tool *schema* (definitions) for the API — keep handlers local
+        const toolDefs = options?.onGetMermaidDocs ? [{
+            type: 'function' as const,
+            name: 'get_mermaid_docs',
+            description: 'Return the official Mermaid syntax documentation for the given diagram kind as Markdown or plain text.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    kind: {
+                        type: 'string',
+                        description: 'Diagram kind: flowchart, graph, sequenceDiagram, classDiagram, stateDiagram, stateDiagram-v2, erDiagram, gantt, journey, gitGraph, pie'
+                    }
+                },
+                required: ['kind'],
+                additionalProperties: false
+            }
+        }] : undefined;
+
+        // 1) First create
+        let current = await this.postCreate({
+            model: this.model,
+            input: messages,              // user/assistant/system/developer messages (roles OK here)
+            temperature: 0.2,
+            text: TEXT_FORMAT,            // structured output schema
+            tools: toolDefs,              // <-- pass *definitions*, not JS functions
+            tool_choice: toolDefs ? 'auto' : undefined
         });
 
-        if (!r.ok) throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
-        const json = await r.json() as unknown;
-        return this.parseResponse(json);
+        // 2) Tool loop (max 3 rounds)
+        for (let i = 0; i < 3; i++) {
+            const calls = collectToolCalls(current);
+            if (!calls.length || !options?.onGetMermaidDocs) break;
+
+            // Build a flat array of *typed* input items (NO role field)
+            const continuationInput: FunctionCallOutputItem[] = [];
+
+            for (const tc of calls) {
+                // Execute your local handler
+                const args = safeParseJSON(tc.arguments);
+                const kind = String(args.kind ?? '') as DiagramKind;
+                const { syntaxDoc, sourceUrl } = await options.onGetMermaidDocs(kind);
+
+                // Send ONLY the function_call_output back (echoing the call is optional)
+                continuationInput.push({
+                    type: 'function_call_output',
+                    call_id: (tc as any).call_id || tc.id,  // your collector sets call_id=id
+                    output: JSON.stringify({ syntaxDoc, sourceUrl })
+                });
+            }
+
+            // Continue the same response
+            current = await this.postCreate({
+                previous_response_id: getResponseId(current), // continuation anchor
+                model: this.model,
+                input: continuationInput,                      // flat typed items; no roles here
+                tools: toolDefs,                               // keep tools available
+                tool_choice: 'auto',
+                text: TEXT_FORMAT
+            });
+        }
+
+        // 3) Parse final
+        return this.parseResponseV2(current);
     }
 
-    /** Parse in this order:
-     * 1) output_json (native structured item)
-     * 2) output_text (try JSON.parse to extract {text,mermaid}, else treat as plain text)
-     * 3) stitched text chunks (same JSON.parse attempt)
-     */
-    private parseResponse(json: unknown): AssistantResult {
-        const o = json as Record<string, unknown>;
-        const outputArr = Array.isArray(o.output) ? (o.output as unknown[]) : [];
 
-        // 1) Structured item
-        for (const item of outputArr) {
+    // ---------- HTTP ----------
+    private async postCreate(body: unknown): Promise<unknown> {
+        const r = await fetch(`${this.baseUrl}/v1/responses`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.apiKey}` },
+            body: JSON.stringify(body)
+        });
+        if (!r.ok) throw new Error(`OpenAI ${r.status}: ${await r.text()}`);
+        return await r.json();
+    }
+
+    // ---------- Parsing ----------
+    private parseResponseV2(json: unknown): AssistantResult {
+        const o = json as Record<string, unknown>;
+
+        for (const item of getOutputArray(o)) {
             const i = item as Record<string, unknown>;
             if (i.type === 'message' && Array.isArray(i.content)) {
                 for (const c of i.content as unknown[]) {
                     const cc = c as Record<string, unknown>;
-                    // Some payloads use type: 'output_json'
                     if (cc.type === 'output_json' && typeof cc.json === 'object' && cc.json) {
-                        const { text, mermaid } = coerceStructured(cc.json as Record<string, unknown>);
+                        const { text, mermaid } = coerceV2(cc.json as Record<string, unknown>);
                         return { text, mermaid, raw: json };
                     }
-                    // Some payloads only return text chunks that contain a JSON string
                     if (cc.type === 'output_text' && typeof cc.text === 'string') {
-                        const parsed = safeParseStructured(cc.text);
+                        const parsed = safeParseV2(cc.text);
                         if (parsed) return { ...parsed, raw: json };
                     }
                 }
             }
         }
 
-        // 2) Aggregated text helper (often present)
-        const outputText = typeof o.output_text === 'string' ? o.output_text : '';
-        if (outputText) {
-            const parsed = safeParseStructured(outputText);
+        const agg = typeof o.output_text === 'string' ? o.output_text : '';
+        if (agg) {
+            const parsed = safeParseV2(agg);
             if (parsed) return { ...parsed, raw: json };
-            return { text: outputText, mermaid: extractMermaid(outputText), raw: json };
+            return { text: agg, mermaid: extractMermaid(agg), raw: json };
         }
 
-        // 3) Last resort: stitch text chunks and try again
+        // stitch as last resort
         let combined = '';
-        for (const item of outputArr) {
+        for (const item of getOutputArray(o)) {
             const i = item as Record<string, unknown>;
             if (i.type === 'message' && Array.isArray(i.content)) {
                 for (const c of i.content as unknown[]) {
@@ -105,53 +175,118 @@ export class OpenAIResponsesClient {
                 }
             }
         }
-        const parsed = safeParseStructured(combined);
+        const parsed = safeParseV2(combined);
         if (parsed) return { ...parsed, raw: json };
         return { text: combined, mermaid: extractMermaid(combined), raw: json };
     }
 }
 
-/** Try to parse a JSON string that looks like { text, mermaid? }.
- * Returns null if it's not valid JSON or doesn't match the shape. */
-function safeParseStructured(s: string): { text: string; mermaid?: string } | null {
-    if (!s || s[0] !== '{') return null;
-    try {
-        const j = JSON.parse(s) as Record<string, unknown>;
-        const { text, mermaid } = coerceStructured(j);
-        return typeof text === 'string' ? { text, mermaid } : null;
-    } catch { return null; }
+// ---------- internals ----------
+interface ToolCall { id: string; name: string; arguments: string; type: 'function_call', call_id: string }
+function getOutputArray(o: Record<string, unknown>): unknown[] { return Array.isArray(o.output) ? o.output : []; }
+function getResponseId(json: unknown): string {
+    const o = json as Record<string, unknown>;
+    if (typeof o.id === 'string' && o.id) return o.id;
+    // some gateways might nest it
+    const resp = (o as { response?: { id?: string } }).response;
+    if (resp && typeof resp.id === 'string' && resp.id) return resp.id;
+    throw new Error('Missing response.id when continuing tool calls');
 }
 
-/** Coerce any object with .text/.mermaid into the right shape. */
-function coerceStructured(j: Record<string, unknown>): { text: string; mermaid?: string } {
-    const text = typeof j.text === 'string' ? j.text : '';
-    const rawMermaid = typeof j.mermaid === 'string' ? j.mermaid : undefined;
-    const mermaid = rawMermaid && rawMermaid.trim().length > 0 ? rawMermaid : undefined;
+
+function collectToolCalls(json: unknown): ToolCall[] {
+    const out: ToolCall[] = [];
+    const o = json as Record<string, unknown>;
+    const output = Array.isArray(o.output) ? o.output : [];
+
+    for (const item of output) {
+        const i = item as Record<string, unknown>;
+
+        // A) Top-level function_call (your case)
+        if (i.type === 'function_call') {
+            const id = typeof i.call_id === 'string' && i.call_id ? i.call_id : (typeof i.id === 'string' ? i.id : '');
+            const name = typeof i.name === 'string' ? i.name : '';
+            const args = typeof i.arguments === 'string' ? i.arguments : '';
+            if (id && name) out.push({ id, name, arguments: args, type: 'function_call', call_id: id });
+            continue;
+        }
+
+        // B) Nested tool_call under a message’s content (other Responses shape)
+        if (i.type === 'message' && Array.isArray(i.content)) {
+            for (const c of i.content as unknown[]) {
+                const cc = c as Record<string, unknown>;
+                if (cc.type === 'tool_call') {
+                    const id = typeof cc.id === 'string' ? cc.id : '';
+                    const name = typeof cc.name === 'string'
+                        ? cc.name
+                        : (typeof (cc as { function?: { name?: string } }).function?.name === 'string'
+                            ? (cc as { function?: { name?: string } }).function!.name!
+                            : '');
+                    const args = typeof cc.arguments === 'string'
+                        ? cc.arguments
+                        : (typeof (cc as { function?: { arguments?: string } }).function?.arguments === 'string'
+                            ? (cc as { function?: { arguments?: string } }).function!.arguments!
+                            : '');
+                    if (id && name) out.push({ id, name, arguments: args, type: 'function_call', call_id: id });
+                }
+            }
+        }
+    }
+
+    return out;
+}
+
+function safeParseJSON(s: unknown): Record<string, unknown> {
+    if (typeof s !== 'string') return {};
+    try { return JSON.parse(s) as Record<string, unknown>; } catch { return {}; }
+}
+function stripCodeFences(s: string): string {
+    const m = s.match(/^```(?:json)?\s*([\s\S]*?)```$/i);
+    return m ? m[1].trim() : s.trim();
+}
+
+function safeParseV2(s: string): { text: string; mermaid?: string } | null {
+    if (!s) return null;
+    const un = stripCodeFences(s);
+    if (!un || un[0] !== '{') return null;
+    try {
+        const obj = JSON.parse(un) as Record<string, unknown>;
+        return coerceV2(obj);
+    } catch {
+        return null;
+    }
+}
+
+function coerceV2(j: Record<string, unknown>): { text: string; mermaid?: string } {
+    // Prefer current schema keys
+    const text =
+        typeof (j as any).text === 'string' ? (j as any).text :
+            typeof (j as any).answer === 'string' ? (j as any).answer : '';
+
+    const mermaid =
+        typeof (j as any).mermaid === 'string' && (j as any).mermaid.trim()
+            ? ((j as any).mermaid as string).trim()
+            : (typeof (j as any).diagram === 'object' && (j as any).diagram && typeof (j as any).diagram.mermaid === 'string'
+                ? ((j as any).diagram.mermaid as string).trim()
+                : undefined);
+
     return { text, mermaid };
 }
 
-/** Extract Mermaid code from ```mermaid fences, generic fences (heuristic), or <mermaid> tags. */
 export function extractMermaid(s: string): string | undefined {
     if (!s) return undefined;
-
-    // ```mermaid ... ```
-    const mermaidFence = /```(?:mermaid)\s*([\s\S]*?)```/i.exec(s);
-    if (mermaidFence?.[1]) return mermaidFence[1].trim();
-
-    // Generic ```...``` → sniff first token for known diagram types
-    const genericFence = /```([\s\S]*?)```/g;
+    const fence = /```(?:mermaid)\s*([\s\S]*?)```/i.exec(s);
+    if (fence?.[1]) return fence[1].trim();
+    const generic = /```([\s\S]*?)```/g;
     let m: RegExpExecArray | null;
-    while ((m = genericFence.exec(s)) !== null) {
+    while ((m = generic.exec(s)) !== null) {
         const code = (m[1] ?? '').trim();
         const head = (code.split(/\s+/)[0] ?? '').toLowerCase();
         if (/^(graph|flowchart|sequencediagram|classdiagram|statediagram|stateDiagram-v2|erdiagram|gantt|journey|gitgraph|pie)$/.test(head)) {
             return code;
         }
     }
-
-    // <mermaid> ... </mermaid>
     const tag = /<mermaid[^>]*>([\s\S]*?)<\/mermaid>/i.exec(s);
     if (tag?.[1]) return tag[1].trim();
-
     return undefined;
 }

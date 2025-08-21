@@ -8,7 +8,8 @@ import MonacoEditorHost from './MonacoEditorHost';
 import type { ILanguageProvider } from './languages/ILanguageProvider';
 import AIChatPane from './AIChatPane';
 // import { AzureOpenAIClient, type ChatMessage } from '../../services/AI/AzureOpenAIClient';
-import { OpenAIResponsesClient, type ChatMessage } from '../../services/AI/OpenAIResponsesClient';
+import { DiagramKind, OpenAIResponsesClient, type ChatMessage } from '../../services/AI/OpenAIResponsesClient';
+import { fetchMermaidDocs } from '../../services/AI/MermaidDocs';
 
 export type MermaidTheme = 'default' | 'neutral' | 'forest' | 'dark' | 'base';
 
@@ -162,8 +163,10 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
     const systemMsg: ChatMessage = {
         role: 'system',
         content:
-            'You are a Mermaid diagram assistant. Reply with concise "text". ' +
-            'When helpful, also return "mermaid" with valid Mermaid markup only (no explanations inside the code).'
+            'You are a Mermaid diagram assistant.\n' +
+            'Return JSON { answer, diagram?: { syntaxHeader, mermaid } } via structured output.\n' +
+            'If you plan to include a diagram, first call the tool get_mermaid_docs with the target kind to review official syntax. ' +
+            'When returning diagram.mermaid, include the syntaxHeader as the first line and output valid Mermaid only (no comments, no backtick fences).'
     };
 
     const onSend = async (prompt: string): Promise<{ text: string; mermaid?: string }> => {
@@ -172,7 +175,13 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
             { role: 'user', content: `Current diagram (may be empty):\n\n${value}` },
             { role: 'user', content: prompt }
         ];
-        const res = await openai.chat(msgs);
+        const res = await openai.chat(msgs, {
+            onGetMermaidDocs: async (kind: DiagramKind) => {
+                // Fetch docs (client-side) and hand the readable syntax back to the model
+                const { syntaxDoc, sourceUrl } = await fetchMermaidDocs(kind);
+                return { syntaxDoc, sourceUrl };
+            }
+        });
         // Optional: auto-apply Mermaid immediately:
         if (res.mermaid) setValue(res.mermaid);
         return { text: res.text, mermaid: res.mermaid };
