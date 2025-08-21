@@ -7,7 +7,8 @@ import mermaid from 'mermaid';
 import MonacoEditorHost from './MonacoEditorHost';
 import type { ILanguageProvider } from './languages/ILanguageProvider';
 import AIChatPane from './AIChatPane';
-import { AzureOpenAIClient, type ChatMessage } from '../../services/AI/AzureOpenAIClient';
+// import { AzureOpenAIClient, type ChatMessage } from '../../services/AI/AzureOpenAIClient';
+import { OpenAIResponsesClient, type ChatMessage } from '../../services/AI/OpenAIResponsesClient';
 
 export type MermaidTheme = 'default' | 'neutral' | 'forest' | 'dark' | 'base';
 
@@ -22,12 +23,11 @@ export interface ExpandedMonacoPanelProps {
     onCancel: () => void;
 }
 
-/* ---------- Demo config: replace with your values ---------- */
-const AOAI_ENDPOINT = '';
-const AOAI_DEPLOYMENT = 'gpt-4';
-const AOAI_API_VERSION = '2025-01-01-preview'; // must be Responses-capable on your resource
-const AOAI_API_KEY = ''; // ⚠️ demo only
-/* ----------------------------------------------------------- */
+// --- Demo config: replace with your values (keep these at top with your other constants) ---
+const OPENAI_MODEL = 'gpt-4';          // a model that supports structured outputs well
+const OPENAI_API_KEY = '<OPENAI_DEMO_API_KEY>'; // ⚠️ demo only; do not ship secrets in client
+// ------------------------------------------------------------------------------------------
+
 
 function useDebounced<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
     const timer = React.useRef<number | undefined>(undefined);
@@ -152,16 +152,13 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
     const doCopySvg = async (): Promise<void> => { if (svg) await navigator.clipboard.writeText(svg); };
 
     // ── Azure OpenAI (API key) client, created once ──────────────────────────────
-    const aoai = React.useMemo(
-        () => new AzureOpenAIClient({
-            endpoint: AOAI_ENDPOINT,
-            deployment: AOAI_DEPLOYMENT,
-            apiVersion: AOAI_API_VERSION,
-            apiKey: AOAI_API_KEY
+    const openai = React.useMemo(
+        () => new OpenAIResponsesClient({
+            apiKey: OPENAI_API_KEY,
+            model: OPENAI_MODEL
         }),
         []
     );
-
     const systemMsg: ChatMessage = {
         role: 'system',
         content:
@@ -175,8 +172,9 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
             { role: 'user', content: `Current diagram (may be empty):\n\n${value}` },
             { role: 'user', content: prompt }
         ];
-        const res = await aoai.chat(msgs);
-        // Optional auto-apply: if (res.mermaid) setValue(res.mermaid);
+        const res = await openai.chat(msgs);
+        // Optional: auto-apply Mermaid immediately:
+        if (res.mermaid) setValue(res.mermaid);
         return { text: res.text, mermaid: res.mermaid };
     };
     // ─────────────────────────────────────────────────────────────────────────────
