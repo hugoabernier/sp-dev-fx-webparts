@@ -8,6 +8,7 @@ import mermaid from 'mermaid';
 import MonacoEditorHost from './MonacoEditorHost';
 import type { ILanguageProvider } from './languages/ILanguageProvider';
 import AIChatPane from './AIChatPane';
+import styles from './ExpandedMonacoPanel.module.scss';
 
 export type MermaidTheme = 'default' | 'neutral' | 'forest' | 'dark' | 'base';
 
@@ -238,13 +239,7 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
 
                     {/* --- Preview (LEFT) --- */}
                     <div
-                        style={{
-                            gridColumn: '1 / 2',
-                            gridRow: '1 / 3',
-                            minWidth: 220,
-                            overflow: 'auto',
-                            borderRight: '1px solid #eee'
-                        }}
+                        className={styles.previewPane}
                     >
                         {languageId === 'mermaid' ? (
                             svg ? <div dangerouslySetInnerHTML={{ __html: svg }} /> : (
@@ -271,6 +266,7 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
                             gridColumn: showChat ? '3 / 4' : '3 / 4', // same column when chat hidden/visible
                             gridRow: '1 / 3',
                             minWidth: 240,
+                            height: '100%',
                             overflow: 'hidden',
                             borderRight: '1px solid #eee'
                         }}
@@ -297,14 +293,11 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
                     {/* --- Chat (RIGHT, toggle) --- */}
                     {showChat && (
                         <div
-                            style={{
-                                gridColumn: '5 / 6',
-                                gridRow: '1 / 3',
-                                minWidth: 180,
-                                overflow: 'hidden'
-                            }}
+                            className={styles.aiChatPane}
+                            
                         >
                             <AIChatPane
+
                                 code={value}
                                 onInsert={(snippet) => setValue(v => `${v}\n${snippet}`)}
                                 onReplace={(snippet) => setValue(snippet)}
