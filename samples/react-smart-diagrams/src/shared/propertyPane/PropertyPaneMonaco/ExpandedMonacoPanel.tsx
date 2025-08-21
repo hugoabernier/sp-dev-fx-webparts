@@ -7,7 +7,7 @@ import mermaid from 'mermaid';
 import MonacoEditorHost from './MonacoEditorHost';
 import type { ILanguageProvider } from './languages/ILanguageProvider';
 import AIChatPane from './AIChatPane';
-import styles from './ExpandedMonacoPanel.module.scss';
+import { AzureOpenAIClient, type ChatMessage } from '../../services/AI/AzureOpenAIClient';
 
 export type MermaidTheme = 'default' | 'neutral' | 'forest' | 'dark' | 'base';
 
@@ -22,7 +22,13 @@ export interface ExpandedMonacoPanelProps {
     onCancel: () => void;
 }
 
-/* ---------- Utilities ---------- */
+/* ---------- Demo config: replace with your values ---------- */
+const AOAI_ENDPOINT = '';
+const AOAI_DEPLOYMENT = 'gpt-4';
+const AOAI_API_VERSION = '2025-01-01-preview'; // must be Responses-capable on your resource
+const AOAI_API_KEY = ''; // ⚠️ demo only
+/* ----------------------------------------------------------- */
+
 function useDebounced<T extends (...args: unknown[]) => void>(fn: T, ms: number): T {
     const timer = React.useRef<number | undefined>(undefined);
     const saved = React.useRef(fn);
@@ -34,71 +40,48 @@ function useDebounced<T extends (...args: unknown[]) => void>(fn: T, ms: number)
     }) as T, [ms]);
 }
 
-/** Resizer for Preview | Editor | Chat.
- * previewPct controls the LEFT pane (preview), chatPct controls the RIGHT pane (chat).
- */
-function useThreePaneResizer(): {
-    containerRef: React.RefObject<HTMLDivElement>;
-    previewPct: number;
-    chatPct: number;
-    onMouseDown: (side: 'left' | 'right') => (e: React.MouseEvent<HTMLDivElement>) => void;
-    onKeyResize: (side: 'left' | 'right') => (e: React.KeyboardEvent<HTMLDivElement>) => void;
-} {
-    const [previewPct, setPreviewPct] = React.useState<number>(34); // left pane width (preview)
-    const [chatPct, setChatPct] = React.useState<number>(28); // right pane width (chat)
+/** Resizer for Preview | Editor | (optional) Chat */
+function useThreePaneResizer() {
+    const [previewPct, setPreviewPct] = React.useState<number>(34);
+    const [chatPct, setChatPct] = React.useState<number>(28);
     const containerRef = React.useRef<HTMLDivElement | null>(null);
     const draggingRef = React.useRef<'left' | 'right' | null>(null);
-
     const clamp = (v: number): number => Math.min(70, Math.max(15, v));
 
-    const onMouseDown = (side: 'left' | 'right'): (e: React.MouseEvent<HTMLDivElement>) => void => (e: React.MouseEvent<HTMLDivElement>): void => {
+    const onMouseDown = (side: 'left' | 'right') => (e: React.MouseEvent<HTMLDivElement>): void => {
         e.preventDefault();
         draggingRef.current = side;
         document.body.style.cursor = 'col-resize';
     };
-
     const onMouseMove = (e: MouseEvent): void => {
         if (!draggingRef.current || !containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const pct = (x / rect.width) * 100;
-
-        if (draggingRef.current === 'left') {
-            // Left handle: sets preview (left pane) width
-            setPreviewPct(clamp(pct));
-        } else {
-            // Right handle: sets chat (right pane) width
-            setChatPct(clamp(100 - pct));
-        }
+        if (draggingRef.current === 'left') setPreviewPct(clamp(pct));
+        else setChatPct(clamp(100 - pct));
     };
-
     const onMouseUp = (): void => { draggingRef.current = null; document.body.style.cursor = ''; };
 
     React.useEffect(() => {
-        const mm = (ev: MouseEvent): void => onMouseMove(ev);
-        const mu = (): void => onMouseUp();
+        const mm = (ev: MouseEvent) => onMouseMove(ev);
+        const mu = () => onMouseUp();
         window.addEventListener('mousemove', mm);
         window.addEventListener('mouseup', mu);
         return () => { window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', mu); };
     }, []);
 
-    // Keyboard resize for accessibility
-    const onKeyResize = (side: 'left' | 'right'): (e: React.KeyboardEvent<HTMLDivElement>) => void => (e: React.KeyboardEvent<HTMLDivElement>): void => {
+    const onKeyResize = (side: 'left' | 'right') => (e: React.KeyboardEvent<HTMLDivElement>): void => {
         const step = (e.shiftKey ? 5 : 2);
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-            if (side === 'left') {
-                setPreviewPct(v => clamp(v + (e.key === 'ArrowRight' ? step : -step)));
-            } else {
-                setChatPct(v => clamp(v + (e.key === 'ArrowLeft' ? step : -step)));
-            }
+            if (side === 'left') setPreviewPct(v => Math.min(70, Math.max(15, v + (e.key === 'ArrowRight' ? step : -step))));
+            else setChatPct(v => Math.min(70, Math.max(15, v + (e.key === 'ArrowLeft' ? step : -step))));
             e.preventDefault();
         }
     };
 
     return { containerRef, previewPct, chatPct, onMouseDown, onKeyResize };
 }
-
-/* ---------- Component ---------- */
 
 const CHAT_PREF_KEY = 'expandedMonaco.showChat';
 
@@ -117,7 +100,6 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
     const [valid, setValid] = React.useState<boolean>(true);
     const [previewError, setPreviewError] = React.useState<string | null>(null);
 
-    // Default: chat hidden; remember user preference
     const [showChat, setShowChat] = React.useState<boolean>(() => {
         try { return window.localStorage.getItem(CHAT_PREF_KEY) === 'true'; }
         catch { return false; }
@@ -132,32 +114,6 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
 
     const { containerRef, previewPct, chatPct, onMouseDown, onKeyResize } = useThreePaneResizer();
 
-    // --- Sync Monaco editor height to previewPane height ---
-    const previewPaneRef = React.useRef<HTMLDivElement>(null);
-    // const [editorHeight, setEditorHeight] = React.useState<number>(480);
-
-    // React.useLayoutEffect(() => {
-    //     if (!previewPaneRef.current) return;
-    //     // const updateHeight = (): void => {
-    //     //     const h = previewPaneRef.current ? previewPaneRef.current.clientHeight : 480;
-    //     //     setEditorHeight(h);
-    //     // };
-    //     // updateHeight();
-    //     // Use ResizeObserver if available
-    //     let ro: ResizeObserver | undefined;
-    //     if (window.ResizeObserver) {
-    //         ro = new ResizeObserver(updateHeight);
-    //         ro.observe(previewPaneRef.current);
-    //     } else {
-    //         window.addEventListener('resize', updateHeight);
-    //     }
-    //     return () => {
-    //         if (ro && previewPaneRef.current) ro.unobserve(previewPaneRef.current);
-    //         window.removeEventListener('resize', updateHeight);
-    //     };
-    // }, [isOpen, previewPct, chatPct, showChat]);
-
-    // Reset state on open
     React.useEffect(() => {
         if (isOpen) {
             setValue(initialValue);
@@ -165,10 +121,8 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
             setValid(true);
             setPreviewError(null);
             mermaid.initialize({ startOnLoad: false, securityLevel: 'strict' });
-            if (languageId === 'mermaid') { 
-                // eslint-disable-next-line @typescript-eslint/no-use-before-define, no-void
-                void renderPreview(initialValue); 
-            }
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
+            if (languageId === 'mermaid') { void renderPreview(initialValue); }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]);
@@ -189,41 +143,67 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
         }
     }, [languageId, theme]);
 
-    // eslint-disable-next-line no-void
     const debouncedPreview = useDebounced((text: string) => { void renderPreview(text); }, 250);
     React.useEffect(() => { debouncedPreview(value); }, [value, debouncedPreview]);
 
     const doApply = (): void => { onApply(value); };
     const doCancel = (): void => { onCancel(); };
-    // const doValidate = async (): Promise<void> => { await renderPreview(value); };
-    // const doCopySvg = async (): Promise<void> => { if (svg) await navigator.clipboard.writeText(svg); };
+    const doValidate = async (): Promise<void> => { await renderPreview(value); };
+    const doCopySvg = async (): Promise<void> => { if (svg) await navigator.clipboard.writeText(svg); };
 
-    /* ----- Toolbar (AI toggle; validate; copy; status) ----- */
+    // ── Azure OpenAI (API key) client, created once ──────────────────────────────
+    const aoai = React.useMemo(
+        () => new AzureOpenAIClient({
+            endpoint: AOAI_ENDPOINT,
+            deployment: AOAI_DEPLOYMENT,
+            apiVersion: AOAI_API_VERSION,
+            apiKey: AOAI_API_KEY
+        }),
+        []
+    );
+
+    const systemMsg: ChatMessage = {
+        role: 'system',
+        content:
+            'You are a Mermaid diagram assistant. Reply with concise "text". ' +
+            'When helpful, also return "mermaid" with valid Mermaid markup only (no explanations inside the code).'
+    };
+
+    const onSend = async (prompt: string): Promise<{ text: string; mermaid?: string }> => {
+        const msgs: ChatMessage[] = [
+            systemMsg,
+            { role: 'user', content: `Current diagram (may be empty):\n\n${value}` },
+            { role: 'user', content: prompt }
+        ];
+        const res = await aoai.chat(msgs);
+        // Optional auto-apply: if (res.mermaid) setValue(res.mermaid);
+        return { text: res.text, mermaid: res.mermaid };
+    };
+    // ─────────────────────────────────────────────────────────────────────────────
+
     const Toolbar = (
-        <Stack horizontal horizontalAlign={'end'} verticalAlign="center" tokens={{ childrenGap: 8 }} styles={{ root: { padding: '4px 0' } }}>
-            <span aria-live="polite" style={{ color: valid ? '#107c10' : '#a4262c' }}>
-                {valid ? '✔ Valid' : `✖ ${previewError ?? 'Invalid'}`}
-            </span>
-           
-            {/* <TooltipHost content="Validate">
+        <Stack horizontal verticalAlign="center" tokens={{ childrenGap: 8 }} styles={{ root: { padding: '4px 0' } }}>
+            <TooltipHost content={showChat ? 'Hide AI' : 'Show AI'}>
+                <IconButton
+                    iconProps={{ iconName: showChat ? 'ChatOff' : 'Chat' }}
+                    aria-label={showChat ? 'Hide AI' : 'Show AI'}
+                    onClick={toggleChat}
+                />
+            </TooltipHost>
+            <TooltipHost content="Validate">
                 <IconButton iconProps={{ iconName: 'CheckMark' }} aria-label="Validate" onClick={() => { void doValidate(); }} />
             </TooltipHost>
             <TooltipHost content="Copy SVG (mermaid)">
                 <IconButton iconProps={{ iconName: 'Copy' }} aria-label="Copy SVG" disabled={!svg} onClick={() => { void doCopySvg(); }} />
-            </TooltipHost> */}
+            </TooltipHost>
             <Separator vertical />
             <Stack.Item grow />
-            <TooltipHost content={showChat ? 'Hide Mermaid assistant' : 'Show Mermaid assistant'}>
-                <IconButton
-                    iconProps={{ iconName: showChat ? 'AutoEnhanceOff' : 'AutoEnhanceOn' }}
-                    aria-label={showChat ? 'Hide Mermaid assistant' : 'Show Mermaid assistant'}
-                    onClick={toggleChat}
-                />
-            </TooltipHost>
+            <span aria-live="polite" style={{ color: valid ? '#107c10' : '#a4262c' }}>
+                {valid ? '✔ Valid' : `✖ ${previewError ?? 'Invalid'}`}
+            </span>
         </Stack>
     );
 
-    /* ----- Footer (Apply/Cancel) in Panel footer ----- */
     const onRenderFooterContent = React.useCallback((): JSX.Element => (
         <Stack horizontal horizontalAlign="end" tokens={{ childrenGap: 8 }}>
             <PrimaryButton text="Apply" onClick={doApply} />
@@ -231,10 +211,6 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
         </Stack>
     ), [doApply, doCancel]);
 
-    /* ----- Grid:
-       Chat hidden:   [Preview] [Handle] [Editor]
-       Chat visible:  [Preview] [Handle] [Editor] [Handle] [Chat]
-    ----- */
     const gridStyle: React.CSSProperties = showChat
         ? {
             display: 'grid',
@@ -264,11 +240,17 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
         >
             <Stack tokens={{ childrenGap: 8 }} styles={{ root: { height: '100%' } }}>
                 {Toolbar}
+
                 <div ref={containerRef} style={gridStyle}>
-                    {/* --- Preview (LEFT) --- */}
+                    {/* Preview (LEFT) */}
                     <div
-                        className={styles.previewPane}
-                        ref={previewPaneRef}
+                        style={{
+                            gridColumn: '1 / 2',
+                            gridRow: '1 / 3',
+                            minWidth: 220,
+                            overflow: 'auto',
+                            borderRight: '1px solid #eee'
+                        }}
                     >
                         {languageId === 'mermaid' ? (
                             svg ? <div dangerouslySetInnerHTML={{ __html: svg }} /> : (
@@ -276,36 +258,39 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
                                     {previewError ?? 'No preview'}
                                 </pre>
                             )
-                        ) : null}
+                        ) : (
+                            <div style={{ padding: 12, opacity: 0.8 }}>No preview renderer for “{languageId}”.</div>
+                        )}
                     </div>
-                    {/* --- Left handle (between Preview and Editor) --- */}
+
+                    {/* Left handle: between Preview and Editor */}
                     <div
                         role="separator" aria-orientation="vertical" tabIndex={0}
                         onKeyDown={onKeyResize('left')} onMouseDown={onMouseDown('left')}
-                        style={{ ...handleStyle, gridColumn: showChat ? '2 / 3' : '2 / 3', gridRow: '1 / 3' }}
+                        style={{ ...handleStyle, gridColumn: '2 / 3', gridRow: '1 / 3' }}
                         aria-label="Resize preview and editor panes"
                     />
-                    {/* --- Editor (CENTER) --- */}
+
+                    {/* Editor (CENTER) */}
                     <div
                         style={{
                             gridColumn: showChat ? '3 / 4' : '3 / 4',
                             gridRow: '1 / 3',
                             minWidth: 240,
                             overflow: 'hidden',
-                            borderRight: showChat ? '1px solid #eee' : undefined,
-                            height: '100%'
+                            borderRight: '1px solid #eee'
                         }}
                     >
                         <MonacoEditorHost
                             value={value}
-                            height='100%'
-                            // height={Math.max(editorHeight, Math.floor(window.innerHeight * 0.68))}
+                            height={Math.max(480, Math.floor(window.innerHeight * 0.68))}
                             languageId={languageId}
                             provider={provider}
                             onChange={setValue}
                         />
                     </div>
-                    {/* --- Right handle (only when chat visible): between Editor and Chat --- */}
+
+                    {/* Right handle (only when chat visible) */}
                     {showChat && (
                         <div
                             role="separator" aria-orientation="vertical" tabIndex={0}
@@ -314,17 +299,23 @@ const ExpandedMonacoPanel: React.FC<ExpandedMonacoPanelProps> = ({
                             aria-label="Resize editor and chat panes"
                         />
                     )}
-                    {/* --- Chat (RIGHT, toggle) --- */}
+
+                    {/* Chat (RIGHT, toggle) */}
                     {showChat && (
                         <div
-                            className={styles.aiChatPane}
-                            style={{ gridColumn: '5 / 6', gridRow: '1 / 3', height: '100%' }}
+                            style={{
+                                gridColumn: '5 / 6',
+                                gridRow: '1 / 3',
+                                minWidth: 180,
+                                overflow: 'hidden'
+                            }}
                         >
                             <AIChatPane
                                 code={value}
                                 onInsert={(snippet) => setValue(v => `${v}\n${snippet}`)}
                                 onReplace={(snippet) => setValue(snippet)}
-                                onExplainSelection={(_sel) => { /* optional: wire to Monaco selection */ }}
+                                onExplainSelection={(_sel) => { }}
+                                onSend={onSend}
                             />
                         </div>
                     )}

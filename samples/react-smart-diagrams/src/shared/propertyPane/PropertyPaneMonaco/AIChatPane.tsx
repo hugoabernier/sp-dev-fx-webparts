@@ -8,8 +8,7 @@ export interface ChatMessage {
     id: string;
     role: 'user' | 'assistant' | 'system';
     text: string;
-    // optional action proposal (e.g., suggested code)
-    snippet?: string;
+    snippet?: string; // Mermaid the user can Insert/Replace
 }
 
 export interface AIChatPaneProps {
@@ -17,27 +16,50 @@ export interface AIChatPaneProps {
     onInsert: (snippet: string) => void;
     onReplace: (snippet: string) => void;
     onExplainSelection: (selection: string) => void;
+    /** If provided, used to send prompts and get { text, mermaid? } */
+    onSend?: (prompt: string) => Promise<{ text: string; mermaid?: string }>;
 }
 
-const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace }) => {
+const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace, onSend }) => {
     const [messages, setMessages] = React.useState<ChatMessage[]>([]);
     const [input, setInput] = React.useState<string>('');
+    const [busy, setBusy] = React.useState<boolean>(false);
 
-    const send = (): void => {
-        if (!input.trim()) return;
-        const userMsg: ChatMessage = { id: String(Date.now()), role: 'user', text: input };
+    const send = async (): Promise<void> => {
+        const prompt = input.trim();
+        if (!prompt || busy) return;
+        setBusy(true);
+
+        const userMsg: ChatMessage = { id: String(Date.now()), role: 'user', text: prompt };
         setMessages(ms => [...ms, userMsg]);
-
-        // TODO: call your AI endpoint; for now echo a stub suggestion
-        const suggestion = '%% Example\nflowchart LR\nUser-->AI';
-        const aiMsg: ChatMessage = {
-            id: `${userMsg.id}-ai`,
-            role: 'assistant',
-            text: 'Here is a snippet you can insert or replace with.',
-            snippet: suggestion
-        };
-        setMessages(ms => [...ms, aiMsg]);
         setInput('');
+
+        try {
+            let text = 'Demo: connect Azure OpenAI to get real answers.'; // fallback only if onSend missing
+            let mermaid: string | undefined;
+
+            if (onSend) {
+                const res = await onSend(prompt);
+                text = res.text ?? '';
+                mermaid = res.mermaid;
+            }
+
+            const aiMsg: ChatMessage = {
+                id: `${userMsg.id}-ai`,
+                role: 'assistant',
+                text,
+                snippet: mermaid
+            };
+            setMessages(ms => [...ms, aiMsg]);
+
+            // Optional: auto-apply
+            // if (mermaid) onReplace(mermaid);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err ?? 'Unknown error');
+            setMessages(ms => [...ms, { id: `${userMsg.id}-err`, role: 'assistant', text: `⚠️ ${msg}` }]);
+        } finally {
+            setBusy(false);
+        }
     };
 
     return (
@@ -49,7 +71,7 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace }) => {
                         if (!item) return null;
                         return (
                             <div style={{ marginBottom: 12 }}>
-                                <div style={{ fontWeight: 600 }}>{item.role === 'user' ? 'You' : 'Mermaid assistant'}</div>
+                                <div style={{ fontWeight: 600 }}>{item.role === 'user' ? 'You' : 'Assistant'}</div>
                                 <div style={{ whiteSpace: 'pre-wrap' }}>{item.text}</div>
                                 {item.snippet && (
                                     <Stack horizontal tokens={{ childrenGap: 8 }} style={{ marginTop: 6 }}>
@@ -65,13 +87,15 @@ const AIChatPane: React.FC<AIChatPaneProps> = ({ onInsert, onReplace }) => {
 
             <TextField
                 multiline autoAdjustHeight
-                placeholder="Generate a flowchart for our ETL pipeline"
-                value={input} onChange={(_, v) => setInput(v ?? '')}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                placeholder="Ask the AI… e.g., Generate a flowchart for our ETL pipeline"
+                value={input}
+                onChange={(_, v) => setInput(v ?? '')}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void send(); } }}
+                disabled={busy}
             />
-            <Stack horizontal horizontalAlign="end" tokens={{ childrenGap: 8 }}>
-              <Stack.Item grow />
-                <DefaultButton iconProps={{ iconName: 'Send' }} aria-label="Send" onClick={send} />
+            <Stack horizontal tokens={{ childrenGap: 8 }}>
+                <PrimaryButton text={busy ? 'Thinking…' : 'Send'} onClick={() => { void send(); }} disabled={busy} />
+                <DefaultButton text="Clear" onClick={() => setMessages([])} disabled={busy} />
             </Stack>
         </Stack>
     );
